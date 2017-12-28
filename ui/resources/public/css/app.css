@@ -153,7 +153,6 @@ body {
   background: transparent;
 }
 .container .left .people .person.active:after, .container .left .people .person:hover:after {
-  display: none;
 }
 .container .right {
   position: relative;
@@ -178,13 +177,13 @@ body {
 }
 .container .right .chat {
   position: relative;
-  display: none;
-  overflow: hidden;
+  overflow-y: scroll;
+  overflow-x: hidden;
   padding: 0 35px 92px;
   border-width: 1px 1px 1px 0;
   border-style: solid;
   border-color: #e6e6e6;
-  height: calc(100% - 48px);
+  height: calc(100% - 150px);
   justify-content: flex-end;
   flex-direction: column;
 }

@@ -1,6 +1,7 @@
 (ns ui.page.index
   (:require-macros [cljs.core.async.macros :refer [go]])
   (:require [re-frame.core :as rf]
+            [reagent.core :as r]
             [cljs.core.async :as a :refer [<! >!]]
             [haslett.client :as ws]
             [haslett.format :as fmt]
@@ -66,6 +67,84 @@
         ;current-room (rf/subscribe [:get :current-room])
         ]
     (fn []
+      
+
+      #_[:div.app
+       [:div.panel.rooms
+        [:div.rooms-list
+         (for [{:keys [id name]} rooms]
+           [:div.room {:class (when (= (:current-room ) id) "current")
+                       :on-click #(dispatch [:go-to-room id])}
+            [:div.name name]])]
+        [:div.chat
+         (for [msg @messages]
+           [:div.message
+            (pr-str msg)])]]])))
+
+(def user-id "123-321-231")
+
+(rf/reg-event-fx
+ :init-room
+ (fn [{db :db} [_ rid]]
+   {:http/xhr [{:uri "register"
+                :request-method "post"
+                :body {:user-id user-id
+                       :name "Ilya Beda"}}
+               {:uri (str "/rooms/" rid)
+                :request-method "get"
+                :success :room-success}
+               {:uri (str "/rooms/" rid "/messages")
+                :params {:room_id rid}
+                :request-method "get"
+                :success :room-messages}
+               {:uri (str "/rooms/" rid "/messages")
+                :request-method "sub"
+                :body {:user-id user-id}
+                :success :room-messages-change}]}))
+
+(rf/reg-event-fx
+ :add-message
+ (fn [_ [_ text rid]]
+   {:http/xhr {:uri (str "/rooms/" rid )
+                :request-method "post"
+                :body {:user-id user-id
+                       :text text}}}))
+
+
+(rf/reg-event-db
+ :room-success
+ (fn [db [_ {room :body}]]
+   (assoc db :room room)))
+
+(rf/reg-event-db
+ :room-success
+ (fn [db [_ {{:keys [id] :as info} :body}]]
+   (js/console.log "Room data:" info)
+   (assoc-in db [:room id] info)))
+
+(rf/reg-event-db
+ :room-messages
+ (fn [db [_ {msgs :body}]]
+   (assoc db :messages msgs)))
+
+(rf/reg-event-db
+ :room-messages-change
+ (fn [db [_ {msgs :body}]]
+   (update db :messages concat msgs)))
+
+(rf/reg-sub
+ :messages
+ (fn [db  _] (:messages db)))
+
+(rf/reg-sub
+ :room
+ (fn [db [_ rid]] (get-in db [:room rid])))
+
+(defn show [{room-id :id}]
+  (rf/dispatch [:init-room room-id])
+  (let [messages (rf/subscribe [:messages])
+        *text (r/atom "")]
+    (fn []
       [:div.wrapper
        [:div.container
         [:div.left
@@ -119,170 +198,16 @@
         [:div.right
          [:div.top [:span "To: " [:span.name "Dog Woofson"]]]
          [:div.chat
-          {:data-chat "person1"}
-          [:div.conversation-start [:span "Today, 6:48 AM"]]
-          [:div.bubble.you
-           "\n                    Hello,\n                "]
-          [:div.bubble.you
-           "\n                    it's me.\n                "]
-          [:div.bubble.you
-           "\n                    I was wondering...\n                "]]
-         [:div.chat
-          {:data-chat "person2"}
-          [:div.conversation-start [:span "Today, 5:38 PM"]]
-          [:div.bubble.you
-           "\n                    Hello, can you hear me?\n                "]
-          [:div.bubble.you
-           "\n                    I'm in California dreaming\n                "]
-          [:div.bubble.me
-           "\n                    ... about who we used to be.\n                "]
-          [:div.bubble.me
-           "\n                    Are you serious?\n                "]
-          [:div.bubble.you
-           "\n                    When we were younger and free...\n                "]
-          [:div.bubble.you
-           "\n                    I've forgotten how it felt before\n                "]]
-         [:div.chat
-          {:data-chat "person3"}
-          [:div.conversation-start [:span "Today, 3:38 AM"]]
-          [:div.bubble.you
-           "\n                    Hey human!\n                "]
-          [:div.bubble.you
-           "\n                    Umm... Someone took a shit in the hallway.\n                "]
-          [:div.bubble.me
-           "\n                    ... what.\n                "]
-          [:div.bubble.me
-           "\n                    Are you serious?\n                "]
-          [:div.bubble.you
-           "\n                    I mean...\n                "]
-          [:div.bubble.you
-           "\n                    It’s not that bad...\n                "]
-          [:div.bubble.you
-           "\n                    But we’re probably gonna need a new carpet.\n                "]]
-         [:div.chat
-          {:data-chat "person4"}
-          [:div.conversation-start [:span "Yesterday, 4:20 PM"]]
-          [:div.bubble.me
-           "\n                    Hey human!\n                "]
-          [:div.bubble.me
-           "\n                    Umm... Someone took a shit in the hallway.\n                "]
-          [:div.bubble.you
-           "\n                    ... what.\n                "]
-          [:div.bubble.you
-           "\n                    Are you serious?\n                "]
-          [:div.bubble.me
-           "\n                    I mean...\n                "]
-          [:div.bubble.me
-           "\n                    It’s not that bad...\n                "]]
-         [:div.chat
-          {:data-chat "person5"}
-          [:div.conversation-start [:span "Today, 6:28 AM"]]
-          [:div.bubble.you
-           "\n                    Wasup\n                "]
-          [:div.bubble.you
-           "\n                    Wasup\n                "]
-          [:div.bubble.you
-           "\n                    Wasup for the third time like is "
-           [:br]
-           "you blind bitch\n                "]]
-         [:div.chat
           {:data-chat "person6"}
-          [:div.conversation-start [:span "Monday, 1:27 PM"]]
-          [:div.bubble.you
-           "\n                    So, how's your new phone?\n                "]
-          [:div.bubble.you
-           "\n                    You finally have a smartphone :D\n                "]
-          [:div.bubble.me
-           "\n                    Drake?\n                "]
-          [:div.bubble.me
-           "\n                    Why aren't you answering?\n                "]
-          [:div.bubble.you
-           "\n                    howdoyoudoaspace\n                "]]
+          #_[:div.conversation-start [:span "Monday, 1:27 PM"]]
+          (for [{:keys [message]} (reverse @messages)]
+            [:div.bubble.you
+             message])]
          [:div.write
-          [:a.write-link.attach {:href "javascript:;"}]
-          [:input {:type "text"}]
-          [:a.write-link.smiley {:href "javascript:;"}]
-          [:a.write-link.send {:href "javascript:;"}]]]]]
-
-      #_[:div.app
-       [:div.panel.rooms
-        [:div.rooms-list
-         (for [{:keys [id name]} rooms]
-           [:div.room {:class (when (= (:current-room ) id) "current")
-                       :on-click #(dispatch [:go-to-room id])}
-            [:div.name name]])]
-        [:div.chat
-         (for [msg @messages]
-           [:div.message
-            (pr-str msg)])]]])))
-
-(def user-id "123-321-231")
-
-(rf/reg-event-fx
- :init-room
- (fn [{db :db} [_ rid]]
-   {:http/xhr [{:uri "register"
-                :request-method "post"
-                :body {:user-id user-id
-                       :name "Ilya Beda"}}
-               {:uri (str "/rooms/" rid)
-                :request-method "get"
-                :success :room-success}
-               {:uri (str "/rooms/" rid "/messages")
-                :params {:room_id rid}
-                :request-method "get"
-                :success :room-messages}
-               {:uri (str "/rooms/" rid "/messages")
-                :request-method "sub"
-                :body {:user-id user-id}
-                :success :room-messages-change}]}))
-
-(rf/reg-event-fx
- :add-message
- (fn [_ [_ rid]]
-   {:http/xhr {:uri (str "/rooms/" rid )
-                :request-method "post"
-                :body {:user-id user-id
-                       :text "hello"}}}))
-
-
-(rf/reg-event-db
- :room-success
- (fn [db [_ {room :body}]]
-   (assoc db :room room)))
-
-(rf/reg-event-db
- :room-success
- (fn [db [_ {{:keys [id] :as info} :body}]]
-   (js/console.log "Room data:" info)
-   (assoc-in db [:room id] info)))
-
-(rf/reg-event-db
- :room-messages
- (fn [db [_ {msgs :body}]]
-   (assoc db :messages msgs)))
-
-(rf/reg-event-db
- :room-messages-change
- (fn [db [_ {msgs :body}]]
-   (update db :messages concat msgs)))
-
-(rf/reg-sub
- :messages
- (fn [db  _] (:messages db)))
-
-(rf/reg-sub
- :room
- (fn [db [_ rid]] (get-in db [:room rid])))
-
-(defn show [{room-id :id}]
-  (rf/dispatch [:init-room room-id])
-  (let [messages (rf/subscribe [:messages])]
-    (fn []
-      [:div
-       [:button {:on-click #(rf/dispatch [:add-message room-id])} "add message"]
-       [:div
-        (pr-str @messages)]])))
+          [:input {:type "text"
+                   :on-change #(reset! *text (-> % .-target .-value))}]
+          [:a.write-link.send {:href "javascript:;"
+                               :on-click #(rf/dispatch [:add-message @*text room-id])}]]]]])))
 
 (reg-page :index/index index)
 (reg-page :rooms/show show)
