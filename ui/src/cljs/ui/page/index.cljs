@@ -216,11 +216,16 @@
            [:div.message
             (pr-str msg)])]]])))
 
+(def user-id "123-321-231")
 
 (rf/reg-event-fx
  :init-room
  (fn [{db :db} [_ rid]]
-   {:http/xhr [{:uri (str "/rooms/" rid)
+   {:http/xhr [{:uri "register"
+                :request-method "post"
+                :body {:user-id user-id
+                       :name "Ilya Beda"}}
+               {:uri (str "/rooms/" rid)
                 :request-method "get"
                 :success :room-success}
                {:uri (str "/rooms/" rid "/messages")
@@ -228,9 +233,23 @@
                 :request-method "get"
                 :success :room-messages}
                {:uri (str "/rooms/" rid "/messages")
-                :params {:room_id rid}
                 :request-method "sub"
+                :body {:user-id user-id}
                 :success :room-messages-change}]}))
+
+(rf/reg-event-fx
+ :add-message
+ (fn [_ [_ rid]]
+   {:http/xhr {:uri (str "/rooms/" rid )
+                :request-method "post"
+                :body {:user-id user-id
+                       :text "hello"}}}))
+
+
+(rf/reg-event-db
+ :room-success
+ (fn [db [_ {room :body}]]
+   (assoc db :room room)))
 
 (rf/reg-event-db
  :room-success
@@ -252,6 +271,7 @@
  :messages
  (fn [db  _] (:messages db)))
 
+<<<<<<< HEAD
 (rf/reg-sub
  :room
  (fn [db [_ rid]] (get-in db [:room rid])))

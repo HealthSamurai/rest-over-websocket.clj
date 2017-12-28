@@ -2,18 +2,15 @@
   (:require [org.httpkit.server :as server]
             [cheshire.core :as json]
             [clj-yaml.core :as yaml]
-            [route-map.core :as routing]))
+            [route-map.core :as routing]
+            [app.pg :as pg]
+            [app.event-source :as evs]
+            [app.model :as model]))
 
 (defn dispatch [req]
   {:status 200
    :body "hello"})
 
-(defn get-rooms [req]
-  {:body [{:id "clojure" :title "Clojure"}
-          {:id "haskel" :title "Haskel"}]})
-
-(defn get-messages [req]
-  {:body [{:author "niquola" :message "Hello"}]})
 
 (def routes
   {:GET          {:action :index}
@@ -21,7 +18,8 @@
    "register"    {:POST {:action :register}}
    "rooms"       {:GET  {:action :rooms}
                   [:id] {:GET {:action :room}
-                         "messages" {:GET {:action :messages}}
+                         "messages" {:GET {:action :messages}
+                                     :SUB {:action :subscribe-messages}}
                          :POST {:action :add-message}}}})
 
 (defn index [_] {:body routes})
@@ -34,8 +32,8 @@
   (println "dispatch" req)
   (*dispatch req))
 
-(defn connection-handler [req]
-  (server/with-channel req ch
+(defn connection-handler [ctx]
+  (server/with-channel ctx ch
     (swap! connections conj ch)
     (server/on-close
      ch (fn [status]
@@ -46,13 +44,17 @@
           (let [req  (json/parse-string data keyword)
                 reqs (if (map? req) [req] req)]
             (doseq [r reqs]
-              (let [resp (dispatch-socket-request r)]
-                (server/send! ch (json/generate-string (assoc resp :request r))))))))))
+              (let [resp (dispatch-socket-request (merge ctx (assoc r :channel ch)))]
+                (server/send! ch (json/generate-string (assoc resp "request" r))))))))))
 
 
 (def fns-map {:index index
-              :rooms #'get-rooms
-              :messages #'get-messages
+              :register #'model/$register
+              :rooms #'model/$get-rooms
+              :room #'model/$get-room
+              :messages #'model/$get-messages
+              :add-message #'model/$add-message
+              :subscribe-messages #'model/$subscribe-messages
               :connection #'connection-handler})
 
 (defn format-mw [f]
@@ -71,19 +73,44 @@
         {:status 404 :body {:message (str "No implementation for " (:match m))}}))
     {:status 404 :body {:message (str uri " is not found")}}))
 
-(def dispatch (-> *dispatch format-mw))
-;; format-mw
+(defn start [cfg]
+  (let [db (:db cfg)
+        ev-conn (evs/connection (:ev cfg))
+        ctx {:db db :ev ev-conn}
+        stack (-> *dispatch format-mw)
+        web-h (fn [req] (stack (merge ctx req)))
+        web (server/run-server web-h {:port 8080})]
+    (assoc ctx :web web)))
 
-(defn start []
-  (server/run-server #'dispatch {:port 8080}))
+(defn stop [{web :web ev :ev}]
+  (web)
+  (evs/close-connection ev))
 
 (comment
-  (def srv (start))
+  (def srv (start {:db {:dbtype "postgresql"
+                        :connection-uri "jdbc:postgresql://localhost:5444/postgres?stringtype=unspecified&user=postgres&password=secret"}
+                   :ev {:uri "jdbc:postgresql://localhost:5444/postgres"
+                        :user "postgres"
+                        :password "secret"
+                        :slot "test_slot"
+                        :decoder "wal2json"}}))
+
+  srv
+
   ;; stop it
-  (srv)
+  (stop srv)
 
   (server/send!
    (first @connections)
    "hello world !!!")
+
+  (do
+    (reset! users {})
+    (reset! room-subscription [])
+    (reset! messages {}))
+
+  @room-subscription
+
+
 
   )

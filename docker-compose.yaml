@@ -1,0 +1,21 @@
+version: '3'
+services:
+  rest-kafka:
+    image: spotify/kafka
+    container_name: rest-kafka
+    ports:
+     - 2182:2181
+     - 9093:9092
+    environment:
+      ADVERTISED_HOST: localhost
+      ADVERTISED_PORT: 9092
+  rest-db:
+    # image: pglogical
+    image: niquola/pglogical:latest
+    container_name: rest-db
+    ports:
+      - "5444:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_DB: proto
+      POSTGRES_PASSWORD: secret
