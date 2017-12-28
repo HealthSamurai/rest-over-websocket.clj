@@ -5,6 +5,7 @@
             [route-map.core :as routing]
             [app.pg :as pg]
             [app.event-source :as evs]
+            [app.sessions :as sessions]
             [app.model :as model]))
 
 (defn dispatch [req]
@@ -29,23 +30,24 @@
 (declare *dispatch)
 
 (defn dispatch-socket-request [req]
-  (println "dispatch" req)
   (*dispatch req))
 
 (defn connection-handler [ctx]
   (server/with-channel ctx ch
     (swap! connections conj ch)
-    (server/on-close
-     ch (fn [status]
-          (swap! connections disj ch)
-          (println "channel closed: " status)))
-    (server/on-receive
-     ch (fn [data]
-          (let [req  (json/parse-string data keyword)
-                reqs (if (map? req) [req] req)]
-            (doseq [r reqs]
-              (let [resp (dispatch-socket-request (merge ctx (assoc r :channel ch)))]
-                (server/send! ch (json/generate-string (assoc resp "request" r))))))))))
+    (let [sess-id (sessions/add-session ch {})]
+      (server/on-close
+       ch (fn [status]
+            (swap! connections disj ch)
+            (sessions/rm-session ch)
+            (println "channel closed: " status)))
+      (server/on-receive
+       ch (fn [data]
+            (let [req  (json/parse-string data keyword)
+                  reqs (if (map? req) [req] req)]
+              (doseq [r reqs]
+                (let [resp (dispatch-socket-request (merge ctx (assoc r :channel ch :session-id sess-id)))]
+                  (server/send! ch (json/generate-string (assoc resp "request" r)))))))))))
 
 
 (def fns-map {:index index

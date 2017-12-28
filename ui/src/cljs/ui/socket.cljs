@@ -26,16 +26,22 @@
              (let [close-status (<! (:close-status stream))]
                (js/console.log close-status)
                (reset! websocket nil))
-             (do (js/console.log "Incomming:" message)
-                 (let [m (js->clj (.parse js/JSON message)
-                                  :keywordize-keys true)
-                       ev (keyword (get-in m [:request :success]))]
-                   (println "ev:" ev (get-in m [:request :success]))
-                   (rf/dispatch [ev m]))))))))))
+             (let [m (js->clj (.parse js/JSON message)
+                              :keywordize-keys true)
+                   ev (keyword (get-in m [:request :success]))]
+               (.log js/console "<=" (.parse js/JSON message))
+               (println "<-"
+                        (get-in m [:request :request-method])
+                        (get-in m [:request :uri])
+                        " dispatch " ev
+                        (:body m))
+               (rf/dispatch [ev m])))))))))
 
 (rf/reg-fx
  :http/xhr
  (fn [opts]
-   (println "Send:" opts)
+   (doseq [req (if (vector? opts) opts [opts])]
+     (println "->" (:request-method req) (:uri req) req))
+   
    (.send (:socket @websocket)
           (.stringify js/JSON (clj->js opts)))))

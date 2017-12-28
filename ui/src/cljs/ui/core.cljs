@@ -13,10 +13,9 @@
             [re-frame.core :as rf]
             [clojure.string :as str]
             [ui.styles :as styles]
-            [ui.page.index :as index]
+            ;; [ui.page.index :as index]
             [ui.routes :as routes]
-            [ui.layout :as layout]
-            [ui.page.index]
+            [ui.chat.core]
             [cljsjs.moment]
             [cljsjs.moment.locale.ru]
             [cljsjs.medium-editor]
@@ -37,20 +36,22 @@
         :db {:route-map/current-route {:match :loading}}
         :ws/connet {}})))
 
+
+(defn layout [content]
+  [:div content])
+
 (defn page []
   (let [route (rf/subscribe [:route-map/current-route])]
     (fn []
       (let [match (:match @route)
             page-comp (get @pages/pages (:match @route))]
-        [layout/page-layout
+        [layout
          (if page-comp
-           page-comp
-           (fn [] [:h1 (str "404 Страница не найдена")]))
-         @route]))))
+           [page-comp (:params @route)]
+           [:h1 (str "404 Страница не найдена")])]))))
 
 (defn root-component []
   [:div#root
-   index/styles
    flash/styles
    styles/common-styles
    [page]

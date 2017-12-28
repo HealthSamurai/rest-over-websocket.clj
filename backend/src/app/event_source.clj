@@ -7,25 +7,40 @@
   (:import [java.sql DriverManager]
            [org.postgresql PGConnection PGProperty]))
 
-(def subscriptions (atom {}))
+(defonce subscriptions (atom {}))
 
 @subscriptions
 
 (defn normalize-msg [x]
-  (let [cols (get-in x [:change 0 :columnnames])
-        kind (get-in x [:change 0 :kind])
-        types (get-in x [:change 0 :columntypes])
-        vals (get-in x [:change 0 :columnvalues])
-        tbl (get-in x [:change 0 :table])
-        coersed-vals (mapv (fn [t v]
-                             (cond
-                               (= "jsonb" t) (json/parse-string v keyword)
-                               :else v)) types vals)]
-    {:table (keyword tbl)
-     :change (keyword kind)
-     :row  (apply hash-map (interleave (mapv keyword cols) coersed-vals))}))
+  (for [ch (:change x)]
+    (cond
+      (= "delete" (:kind ch))
+      (let [cols (get-in ch [:oldkeys :keynames])
+            tbl (get-in ch [:table])
+            vals (get-in ch [:oldkeys :keyvalues])]
+        {:table (keyword tbl)
+         :change :delete
+         :row  (apply hash-map (interleave (mapv keyword cols) vals))})
+
+      (= "insert" (:kind ch))
+      (let [cols (get-in ch [:columnnames])
+            types (get-in ch [:columntypes])
+            vals (get-in ch [:columnvalues])
+            tbl (get-in ch [:table])
+            coersed-vals (mapv (fn [t v]
+                                 (cond
+                                   (= "jsonb" t) (json/parse-string v keyword)
+                                   :else v)) types vals)]
+        {:table (keyword tbl)
+         :change :insert
+         :row  (apply hash-map (interleave (mapv keyword cols) coersed-vals))})
+      :else ch)))
 
 (comment
+  (normalize-msg {:change [{:kind "delete", :schema "public", :table "messages", :oldkeys {:keynames ["id"], :keytypes ["integer"], :keyvalues [47]}}
+                           {:kind "delete", :schema "public", :table "messages", :oldkeys {:keynames ["id"], :keytypes ["integer"], :keyvalues [48]}}
+                           {:kind "delete", :schema "public", :table "messages", :oldkeys {:keynames ["id"], :keytypes ["integer"], :keyvalues [49]}} {:kind "delete", :schema "public", :table "messages", :oldkeys {:keynames ["id"], :keytypes ["integer"], :keyvalues [50]}} {:kind "delete", :schema "public", :table "messages", :oldkeys {:keynames ["id"], :keytypes ["integer"], :keyvalues [51]}} {:kind "delete", :schema "public", :table "messages", :oldkeys {:keynames ["id"], :keytypes ["integer"], :keyvalues [52]}} {:kind "delete", :schema "public", :table "messages", :oldkeys {:keynames ["id"], :keytypes ["integer"], :keyvalues [53]}} {:kind "delete", :schema "public", :table "messages", :oldkeys {:keynames ["id"], :keytypes ["integer"], :keyvalues [54]}} {:kind "delete", :schema "public", :table "messages", :oldkeys {:keynames ["id"], :keytypes ["integer"], :keyvalues [55]}}]})
+
   (normalize-msg
    {:change [{:kind "insert"
               :schema "public"
@@ -36,8 +51,8 @@
   )
 
 (defn dispatch [msg]
-  (let [m (normalize-msg msg)]
-    (println "MESSAGE:" msg " => " m)
+  (doseq [m (normalize-msg msg)]
+    (println "MESSAGE:" (pr-str msg) " => " m)
     (doseq [[k f] @subscriptions]
       (println "NOTIFY " f)
       (f m))))
@@ -52,7 +67,7 @@
   (get @subscriptions k))
 
 (defn on-message [x]
-  (println "raw message:" x)
+  ;; (println "raw message:" x)
   (dispatch (json/parse-string x keyword)))
 
 (defn close-connection [{conn :conn}]
