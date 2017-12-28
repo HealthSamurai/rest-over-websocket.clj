@@ -2,8 +2,7 @@
   (:require [org.httpkit.server :as server]
             [cheshire.core :as json]
             [clj-yaml.core :as yaml]
-            [route-map.core :as routing]
-            ))
+            [route-map.core :as routing]))
 
 (defn dispatch [req]
   {:status 200
@@ -22,10 +21,6 @@
 
                       :POST {:action :add-message}}}})
 (defn index [_] {:body "<html></html>"})
-
-(def fns-map {:index index
-              :rooms #'get-rooms
-              :connection #'connection-handler})
 
 (defonce connections (atom #{}))
 
@@ -49,7 +44,9 @@
                         (json/generate-string
                          (dispatch-socket-request (json/parse-string data keyword))))))))
 
-
+(def fns-map {:index index
+              :rooms #'get-rooms
+              :connection #'connection-handler})
 
 (defn format-mw [f]
   (fn [req]
@@ -76,5 +73,4 @@
 (comment
   (def srv (start))
   ;; stop it
-  (srv)
-  )
+  (srv))
