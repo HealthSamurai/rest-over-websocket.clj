@@ -38,6 +38,7 @@
     (server/on-close
      ch (fn [status]
           (swap! connections disj ch)
+          (model/$clear-connection ch)
           (println "channel closed: " status)))
     (server/on-receive
      ch (fn [data]

@@ -13,17 +13,24 @@
 (defonce messages (atom {}))
 (defonce users (atom {}))
 
+(defn $clear-connection [ch]
+  (println "TODO remove related from users and related room-subscription"))
+
 (defn rooms-sub [{row :row tbl :table :as event}]
   (println "ROOM SUB: " row)
   (when (= :messages tbl)
-    (doseq [[current-user-id current-room] @room-subscription]
+    (doseq [[current-user-id current-room request] @room-subscription]
       (when (= current-room (str (get-in event [:row :room_id])))
         (let [message (merge (:resource row) (dissoc row :resource))
               {channel :channel} (get @users current-user-id)
-              resp {:body [message] :request {:success :room-messages-change} :status 200}]
+              request {:success (keyword (:success request))}
+              resp {:body [message] :request request :status 200}]
           (server/send! channel (json/generate-string resp)))))))
 
-(when-not (evs/has-sub? :rooms) (evs/add-sub :rooms #'rooms-sub))
+(when-not (evs/has-sub? :rooms)
+  (evs/add-sub :rooms #'rooms-sub)
+
+  )
 
 (defn next-tx [db]
   (-> (pg/q db "SELECT nextval('tx');")
@@ -42,9 +49,9 @@
 (defn $get-room [req]
   {:body {:memebers [1 2 3]}})
 
-(defn $subscribe-messages [{{user-id :user-id} :body {room :id} :route-params}]
+(defn $subscribe-messages [{{user-id :user-id} :body {room :id} :route-params :as request}]
   (when-not (some #(= % [user-id room]) @room-subscription)
-    (swap! room-subscription conj [user-id room]))
+    (swap! room-subscription conj [user-id room request]))
   {:status 200 :body []})
 
 
@@ -87,6 +94,14 @@
                          :message "Hello all"})
 
   (migrate pg/db)
+
+
+  (do
+    (reset! users {})
+    (reset! room-subscription [])
+    (reset! messages {}))
+
+  @room-subscription
 
 
 
