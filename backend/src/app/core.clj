@@ -102,17 +102,6 @@
   ;; stop it
   (stop srv)
 
-  (server/send!
-   (first @connections)
-   "hello world !!!")
-
-  (do
-    (reset! users {})
-    (reset! room-subscription [])
-    (reset! messages {}))
-
-  @room-subscription
-
 
 
   )

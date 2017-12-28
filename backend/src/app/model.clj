@@ -9,10 +9,6 @@
   (pg/exec db "create table if not exists rooms    (id serial primary key, tx bigint, resource jsonb)")
   (pg/exec db "create table if not exists messages (id serial primary key, tx bigint, room_id bigint, resource jsonb)"))
 
-(defonce room-subscription (atom {}))
-(defonce users (atom {}))
-
-@room-subscription
 
 (defn rooms-sub [{{rid :room_id id :id :as row} :row chng :change tbl :table :as event}]
   (println "ROOM SUB: " rid (:id row) event)
@@ -20,7 +16,8 @@
    [:rooms (str rid) :messages]
    {:body {:change chng :entity (pg/jsonb-row row)} :status 200}))
 
-(when-not (evs/has-sub? :rooms) (evs/add-sub :rooms #'rooms-sub))
+(when-not (evs/has-sub? :rooms)
+  (evs/add-sub :rooms #'rooms-sub))
 
 (defn next-tx [db]
   (-> (pg/q db "SELECT nextval('tx');")
@@ -42,8 +39,6 @@
 (defn $subscribe-messages [{sid :session-id channel :channel {user-id :user-id} :body {room-id :id} :route-params :as req}]
   (println "Subscribe:" channel room-id)
   (sessions/add-subs [:rooms room-id :messages] sid (select-keys req [:success :uri :request-method]))
-  #_(swap! room-subscription assoc-in [room-id channel]
-         (select-keys req [:success :uri :request-method]))
   {:status 200 :body []})
 
 
@@ -89,6 +84,7 @@
                          :message "Hello all"})
 
   (migrate pg/db)
+
 
 
 
