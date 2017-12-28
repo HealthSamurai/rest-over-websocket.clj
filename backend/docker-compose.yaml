@@ -1,0 +1,11 @@
+version: '3'
+services:
+  fpconf_db:
+    image: postgres:10
+    container_name: fpconf_db
+    ports:
+      - "5679:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_DB: test
+      POSTGRES_PASSWORD: secret
