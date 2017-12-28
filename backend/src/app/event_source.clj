@@ -1,4 +1,4 @@
-(ns app.db
+(ns app.event-source
   (:require [cheshire.core :as json]
             [clojure.string :as str]
             [clojure.set]
@@ -7,18 +7,57 @@
   (:import [java.sql DriverManager]
            [org.postgresql PGConnection PGProperty]))
 
+(def subscriptions (atom {}))
 
-(defonce state (atom {}))
+@subscriptions
 
-(defn close-replication-connection []
-  (when-let  [conn (get @state :repl-conn)]
-    (.close conn)
-    (swap! state dissoc :repl-conn)))
+(defn normalize-msg [x]
+  (let [cols (get-in x [:change 0 :columnnames])
+        kind (get-in x [:change 0 :kind])
+        types (get-in x [:change 0 :columntypes])
+        vals (get-in x [:change 0 :columnvalues])
+        tbl (get-in x [:change 0 :table])
+        coersed-vals (mapv (fn [t v]
+                             (cond
+                               (= "jsonb" t) (json/parse-string v keyword)
+                               :else v)) types vals)]
+    {:table (keyword tbl)
+     :change (keyword kind)
+     :row  (apply hash-map (interleave (mapv keyword cols) coersed-vals))}))
 
-(defn replication-connection
-  [{uri :uri usr :user pwd :password slot-name :slot decod :decoder} cb]
-  (close-replication-connection)
+(comment
+  (normalize-msg
+   {:change [{:kind "insert"
+              :schema "public"
+              :table "rooms"
+              :columnnames ["id" "tx" "resource"]
+              :columntypes ["integer" "bigint" "jsonb"]
+              :columnvalues [6 13 "{\"name\": \"Another room 2\"}"]}]})
+  )
 
+(defn dispatch [msg]
+  (let [m (normalize-msg msg)]
+    (println "MESSAGE:" msg " => " m)
+    (doseq [[k f] @subscriptions]
+      (println "NOTIFY " f)
+      (f m))))
+
+(defn add-sub [k f]
+  (swap! subscriptions assoc k f))
+
+(defn rm-sub [k]
+  (swap! subscriptions dissoc k))
+
+(defn has-sub? [k]
+  (get @subscriptions k))
+
+(defn on-message [x]
+  (dispatch (json/parse-string x keyword)))
+
+(defn close-connection [{conn :conn}]
+  (when conn (.close conn)))
+
+(defn connection [{uri :uri usr :user pwd :password slot-name :slot decod :decoder}]
   (def pr (java.util.Properties.))
 
   (.set PGProperty/USER pr usr)
@@ -52,36 +91,37 @@
                    (withSlotOption "include-xids", false)
                    (start))]
 
-    (swap! state assoc :repl-conn conn :slot slot-name)
     (future
       (loop []
         (let [msg (.read stream)
               src (.array msg)
               off (.arrayOffset msg)
               lsn (.getLastReceiveLSN stream)]
-          (cb (String. src  off  (- (count src) off)))
+          (#'on-message (String. src  off  (- (count src) off)))
           (println "LSN:" (str lsn))
           (.setAppliedLSN stream lsn)
           (.setFlushedLSN stream lsn))
-        (recur)))))
+        (recur)))
 
-(defn dispatch [msg]
-  (println "MESSAGE:" msg))
-
-(defn on-message [x]
-  (dispatch (json/parse-string x keyword)))
+    {:conn conn
+     :slot slot-name}))
 
 (comment 
-  (defonce repl-conn
-    (replication-connection
+  (defonce conn
+    (connection
      {:uri "jdbc:postgresql://localhost:5444/postgres"
       :user "postgres"
       :password "secret"
-      :slot "test_slot"
-      :decoder "wal2json"}
-     #'on-message))
+      :slot "test_slot2"
+      :decoder "wal2json"}))
 
-  repl-conn)
+  conn
+
+  (close-connection conn)
+
+  (add-sub :test (fn [x] (println "SUB: " x)))
+
+  )
 
 
 

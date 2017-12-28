@@ -10,7 +10,8 @@ services:
       ADVERTISED_HOST: localhost
       ADVERTISED_PORT: 9092
   rest-db:
-    image: pglogical
+    # image: pglogical
+    image: niquola/pglogical:latest
     container_name: rest-db
     ports:
       - "5444:5432"

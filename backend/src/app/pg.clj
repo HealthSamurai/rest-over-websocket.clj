@@ -61,24 +61,17 @@
   (jdbc/query db "select 1")
 
   (q db {:select [:*] :from [:test]})
+  (q db {:select [:*] :from [:rooms]})
 
   (exec db "drop table  if exists test; create table test (id serial, resource jsonb)")
-  (honey/format
-   {:insert-into :test
-    :values [{:resource (json/generate-string {:a 1})}]
-    :returning [:*]})
 
-  (q db 
+  (q db
      {:insert-into :test
       :values [{:resource (json/generate-string {:a 1})}]
       :returning [:*]})
 
 
-  (jdbc/query
-   db
-   "select *
-  from information_schema.tables
-  limit 10")
+  (jdbc/query db "select * from information_schema.tables limit 10")
 
   (q db {:select [(honey/raw "resource#>>'{name,given}'")]
          :from [:test]
