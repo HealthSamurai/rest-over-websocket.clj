@@ -1,177 +1,87 @@
 (ns app.db
-  (:require [honeysql.core :as honey]
-            [honeysql.format :as sqlf]
-            [clojure.java.jdbc :as jdbc]))
-
-;; use java
-
-(def db {:dbtype "postgresql"
-         :connection-uri "jdbc:postgresql://localhost:5679/postgres?stringtype=unspecified&user=postgres&password=secret"})
-
-(jdbc/query db "select 1")
+  (:require [cheshire.core :as json]
+            [clojure.string :as str]
+            [clojure.set]
+            [clojure.java.jdbc :as jdbc]
+            [clojure.tools.logging :as log])
+  (:import [java.sql DriverManager]
+           [org.postgresql PGConnection PGProperty]))
 
 
-(jdbc/query
- db
- "select *
-  from information_schema.tables
-  limit 10")
+(defonce state (atom {}))
 
+(defn close-replication-connection []
+  (when-let  [conn (get @state :repl-conn)]
+    (.close conn)
+    (swap! state dissoc :repl-conn)))
 
-;; honey
+(defn replication-connection
+  [{uri :uri usr :user pwd :password slot-name :slot decod :decoder} cb]
+  (close-replication-connection)
 
-(def tables-q
-  {:select [:*]
-   :from   [:information_schema.tables]
-   :limit  10})
+  (def pr (java.util.Properties.))
 
-(honey/format tables-q)
+  (.set PGProperty/USER pr usr)
+  (.set PGProperty/REPLICATION pr "database")
+  (.set PGProperty/PASSWORD pr pwd)
+  (.set PGProperty/PREFER_QUERY_MODE pr "simple")
+  (.set PGProperty/ASSUME_MIN_SERVER_VERSION pr "9.5")
 
-(jdbc/query db (honey/format tables-q))
+  (let [slot-name (or slot-name "test_slot")
+        conn (-> (DriverManager/getConnection uri pr)
+                 (.unwrap PGConnection))
+        _  (try
+             (-> conn
+                 (.prepareStatement (str "DROP_REPLICATION_SLOT " slot-name))
+                 (.execute))
+             (catch Exception e (println e)))
 
-;; ;; composabiity
+        slot (.. conn
+                 (getReplicationAPI)
+                 (createReplicationSlot)
+                 (logical)
+                 (withSlotName slot-name)
+                 (withOutputPlugin (or decod "wal2json"))
+                 (make))
 
-(defn with-catalog [q catalog]
-  (assoc q :where [:= :table_schema catalog]))
+        stream (.. conn
+                   (getReplicationAPI)
+                   (replicationStream)
+                   (logical)
+                   (withSlotName slot-name)
+                   (withSlotOption "include-xids", false)
+                   (start))]
 
-(with-catalog {} "public")
+    (swap! state assoc :repl-conn conn :slot slot-name)
+    (future
+      (loop []
+        (let [msg (.read stream)
+              src (.array msg)
+              off (.arrayOffset msg)
+              lsn (.getLastReceiveLSN stream)]
+          (cb (String. src  off  (- (count src) off)))
+          (println "LSN:" (str lsn))
+          (.setAppliedLSN stream lsn)
+          (.setFlushedLSN stream lsn))
+        (recur)))))
 
-(defn with-name [q nm]
-  (let [cr [:like :table_name (str "%" nm "%")]]
-    (->> (if-let [where (:where q)]
-           [:and cr where]
-           cr)
-         (assoc q :where))))
+(defn dispatch [msg]
+  (println "MESSAGE:" msg))
 
-(with-name {} "nik")
+(defn on-message [x]
+  (dispatch (json/parse-string x keyword)))
 
-;; (-> tables-q
-;;     (with-name "tabl"))
+(comment 
+  (defonce repl-conn
+    (replication-connection
+     {:uri "jdbc:postgresql://localhost:5444/postgres"
+      :user "postgres"
+      :password "secret"
+      :slot "test_slot"
+      :decoder "wal2json"}
+     #'on-message))
 
-(defn tables []
-  (->> (-> tables-q
-       (with-catalog "information_schema")
-       (with-name "tabl"))
-       (honey/format)
-       (jdbc/query db)
-       (mapv :table_name)))
-
-(tables)
-
-(defn where-and [q cr]
-  (->> (if-let [where (:where q)]
-         [:and cr where]
-         cr)
-       (assoc q :where)))
-
-(defn with-catalog [q catalog]
-  (where-and q [:= :table_schema catalog]))
-
-(defn with-name [q nm]
-  (where-and q [:like :table_name (str "%" nm "%")]))
-
-(-> tables-q
-    (with-name "tabl")
-    (with-catalog "information_schema")
-    (honey/format)
-    (->>  (jdbc/query db)))
-
-(jdbc/execute! db "drop table  if exists test; create table test (id serial, resource jsonb)")
-
-(jdbc/query db "select * from test")
-
-(honey/format
- {:insert-into :test
-  :values {:resource "{\"name\": \"Nikolai\"}"}
-  :returning [:*] ;; this does not work!
-  })
-
-
-(sqlf/register-clause! :returning 230)
-
-(defmethod sqlf/format-clause
-  :returning
-  [[_ fields] sql-map]
-  (str "RETURNING "
-       (when (:modifiers sql-map)
-         (str (sqlf/space-join (map (comp clojure.string/upper-case name)
-                                    (:modifiers sql-map)))
-              " "))
-       (sqlf/comma-join (map sqlf/to-sql fields))))
-
-(require '[cheshire.core :as json])
-
-(jdbc/query db
- (honey/format
-  {:insert-into :test
-   :values [{:resource
-             (json/generate-string {:name {:given "Nicola"
-                                           :family "Ryzhikov"}})}]
-   :returning [:*]}))
-
-(defn q [db hsql]
-  (jdbc/query db (if (string? hsql) hsql (honey/format hsql))))
-
-
-
-(require '[clojure.test :as t])
-
-(t/is (= (q db {:select [:*] :from [:test]})
-           []))
-
-(-> (q db {:select [:*] :from [:test]})
-    first
-    :resource
-    type)
-
-;; (-> (q db {:select [:*] :from [:test]})
-;;     type)
-
-(import '[org.postgresql.util PGobject])
-
-(defmulti coerse (fn [x] (type x)))
-
-(defmethod coerse :default [x] x)
-
-(coerse 1)
-
-(coerse "ups")
-
-(defmethod coerse
-  PGobject
-  [pgobj]
-  (let [type  (.getType pgobj)
-        value (.getValue pgobj)]
-    (case type
-      "jsonb"  (json/parse-string value true)
-      value)))
-
-(defmethod coerse
-  clojure.lang.LazySeq
-  [col]
-  (mapv coerse col))
-
-(type {:a 1})
-
-(defmethod coerse
-  clojure.lang.PersistentArrayMap
-  [h]
-  (reduce (fn [acc [k v]] (assoc acc k (coerse v))) {} h))
-
-(defn q [db hsql]
-  (->> (jdbc/query db (if (string? hsql) hsql (honey/format hsql)))
-       (mapv coerse)))
-
-(q db {:select [:*] :from [:test]})
-
-(q db "delete from test returning *")
-
-(q db {:select [(honey/raw "resource#>>'{name,given}'")]
-       :from [:test]})
-
-(q db {:select [(honey/raw "resource#>>'{name,given}'")]
-       :from [:test]
-       :where [:like [(honey/raw "resource#>>'{name,given}'")] "%a"]})
+  repl-conn)
 
 
 
