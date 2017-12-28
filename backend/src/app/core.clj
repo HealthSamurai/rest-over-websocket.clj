@@ -73,4 +73,10 @@
 (comment
   (def srv (start))
   ;; stop it
-  (srv))
+  (srv)
+
+  (server/send!
+   (first @connections)
+   "hello world !!!")
+
+  )

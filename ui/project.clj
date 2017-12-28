@@ -22,6 +22,7 @@
                  [garden "1.3.2"]
                  [cljsjs/moment "2.17.1-1"]
                  [cljsjs/medium-editor "5.23.2-0"]
+                 [haslett "0.1.0"]
                  [route-map "0.0.4"]]
 
   :plugins [[lein-environ "1.1.0"]

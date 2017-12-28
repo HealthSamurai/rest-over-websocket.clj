@@ -29,17 +29,8 @@
 
 (rf/reg-event-fx
  :core/initialize
- [(rf/inject-cofx ::cookies/get :auth)
-  (rf/inject-cofx ::storage/get :account)
-  (rf/inject-cofx :window-location)
-  (rf/inject-cofx ::openid/jwt :auth)]
- (fn [{jwt :jwt
-       {auth :auth account :account :as cook} :cookie
-       {account :account} :storage
-       {qs :query-string hash :hash url :url :as loc} :location
-       {config :config :as db} :db
-       :as cofx} [_ opts]]
-   (let [config (merge default-cfg config opts qs)]
+ (fn [{{config :config :as db} :db :as cofx} [_ opts]]
+   (let [config (merge default-cfg config opts)]
        {:dispatch [:route-map/init routes/routes]
         :db {:route-map/current-route {:match :loading}}})))
 
