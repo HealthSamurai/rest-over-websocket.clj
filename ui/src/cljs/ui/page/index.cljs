@@ -35,11 +35,16 @@
          [:a.item {:key (:id r) :href (href "rooms" (:id r))}
           [:b (:title r)]])])))
 
+(def user-id "123-321-231")
 
 (rf/reg-event-fx
  :init-room
  (fn [{db :db} [_ rid]]
-   {:http/xhr [{:uri (str "/rooms/" rid)
+   {:http/xhr [{:uri "register"
+                :request-method "post"
+                :body {:user-id user-id
+                       :name "Ilya Beda"}}
+               {:uri (str "/rooms/" rid)
                 :request-method "get"
                 :success :room-success}
                {:uri (str "/rooms/" rid "/messages")
@@ -47,9 +52,23 @@
                 :request-method "get"
                 :success :room-messages}
                {:uri (str "/rooms/" rid "/messages")
-                :params {:room_id rid}
                 :request-method "sub"
+                :body {:user-id user-id}
                 :success :room-messages-change}]}))
+
+(rf/reg-event-fx
+ :add-message
+ (fn [_ [_ rid]]
+   {:http/xhr {:uri (str "/rooms/" rid )
+                :request-method "post"
+                :body {:user-id user-id
+                       :text "hello"}}}))
+
+
+(rf/reg-event-db
+ :room-success
+ (fn [db [_ {room :body}]]
+   (assoc db :room room)))
 
 (rf/reg-event-db
  :room-messages
@@ -66,12 +85,12 @@
  (fn [db  _] (:messages db)))
 
 (defn show [params]
-  (println "params" params)
   (rf/dispatch [:init-room (:id params)])
   (let [messages (rf/subscribe [:messages])]
     (fn []
       [:div
        [:h2 "Show"]
+       [:button {:on-click #(rf/dispatch [:add-message (:id params)])} "add message"]
        [:pre (pr-str @messages)]])))
 
 (reg-page :index/index index)
