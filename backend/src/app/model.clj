@@ -17,7 +17,7 @@
   (println "ROOM SUB: " row)
   (when (= :messages tbl)
     (doseq [[current-user-id current-room] @room-subscription]
-      (when (= current-room (get-in event [:row :room_id]))
+      (when (= current-room (str (get-in event [:row :room_id])))
         (let [message (merge (:resource row) (dissoc row :resource))
               {channel :channel} (get @users current-user-id)
               resp {:body [message] :request {:success :room-messages-change} :status 200}]
