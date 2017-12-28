@@ -56,6 +56,21 @@
   (->> (jdbc/query db (if (string? hsql) hsql (honey/format hsql)))
        (mapv coerse)))
 
+(defn jsonb-row [x]
+  (merge (:resource x) (dissoc x :resource)))
+
+(defn jsonb-query [db hsql]
+  (->> (q db hsql)
+       (mapv jsonb-row)))
+
+(defn jsonb-insert [db tbl row]
+  (first (jsonb-query db {:insert-into tbl
+                          :values [(assoc (update row :resource json/generate-string)
+                                          :tx (raw "nextval('tx')"))]
+                          :returning [:*]})))
+
+
+
 
 (comment
   (jdbc/query db "select 1")

@@ -9,43 +9,9 @@
   (pg/exec db "create table if not exists rooms    (id serial primary key, tx bigint, resource jsonb)")
   (pg/exec db "create table if not exists messages (id serial primary key, tx bigint, room_id bigint, resource jsonb)"))
 
-(defn next-tx [db]
-  (-> (pg/q db "SELECT nextval('tx');")
-      first
-      :nextval))
-
-(defn get-rooms [db]
-  (pg/q db {:select [:*] :from [:rooms]}))
-
-(defn create-room [db room]
-  (pg/q db {:insert-into :rooms
-            :values [{:tx (pg/raw "nextval('tx')")
-                      :resource (json/generate-string room)}]
-            :returning [:*]}))
-
-(defn create-message [db message]
-  (pg/q db {:insert-into :messages
-            :values [{:room_id (:room_id message)
-                      :tx (pg/raw "nextval('tx')")
-                      :resource (json/generate-string message)}]
-            :returning [:*]}))
-
-(defn $get-rooms [{db :db :as req}]
-  {:body (->> (get-rooms db)
-              (mapv (fn [x] (merge (:resource x) (dissoc x :resource)))))})
-
-(defn $get-room [req]
-  {:body {:memebers [1 2 3]}})
-
 (defonce room-subscription (atom []))
 (defonce messages (atom {}))
 (defonce users (atom {}))
-
-(defn $subscribe-messages [{{user-id :user-id} :body {room :id} :route-params}]
-  (when-not (some #(= % [user-id room]) @room-subscription)
-    (swap! room-subscription conj [user-id room]))
-  {:status 200 :body []})
-
 
 (defn rooms-sub [{row :row tbl :table :as event}]
   (println "ROOM SUB: " row)
@@ -59,10 +25,36 @@
 
 (when-not (evs/has-sub? :rooms) (evs/add-sub :rooms #'rooms-sub))
 
+(defn next-tx [db]
+  (-> (pg/q db "SELECT nextval('tx');")
+      first
+      :nextval))
+
+(defn create-room [db room]
+  (pg/jsonb-insert db :rooms {:resource room}))
+
+(defn get-rooms [db]
+  (pg/jsonb-query db {:select [:*] :from [:rooms]}))
+
+(defn $get-rooms [{db :db :as req}]
+  {:body (get-rooms db)})
+
+(defn $get-room [req]
+  {:body {:memebers [1 2 3]}})
+
+(defn $subscribe-messages [{{user-id :user-id} :body {room :id} :route-params}]
+  (when-not (some #(= % [user-id room]) @room-subscription)
+    (swap! room-subscription conj [user-id room]))
+  {:status 200 :body []})
+
+
 (defn $register [{channel :channel {user-id :user-id name :name :as body} :body :as params}]
-  
   (swap! users assoc user-id (assoc body :channel channel))
   {:body []})
+
+(defn create-message [db message]
+  (pg/jsonb-insert db :messages {:room_id (:room_id message)
+                                 :resource message}))
 
 (defn $add-message [{db :db {user-id :user-id text :text} :body {room :id} :route-params :as data}]
   (let [{name :name} (get @users user-id)
@@ -71,8 +63,7 @@
      :body (create-message db message)}))
 
 (defn $get-messages [{db :db {room :id} :route-params}]
-  {:body (->> (pg/q db {:select [:*] :from [:messages] :where [:= :room_id room]})
-             (mapv (fn [x] (merge (:resource x) (dissoc x :resource)))))})
+  {:body (pg/jsonb-query db {:select [:*] :from [:messages] :where [:= :room_id room]})})
 
 
 (comment
