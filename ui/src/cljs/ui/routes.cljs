@@ -6,7 +6,8 @@
 
 (def routes
   {:. :index/index
-   "rooms" {[:id] {:. :rooms/show}}})
+   "rooms" {[:id] {:. :rooms/show}
+            "new" {:. :rooms/new}}})
 
 (defn to-query-params [params]
   (->> params

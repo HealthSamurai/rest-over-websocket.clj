@@ -9,21 +9,20 @@
             [app.model :as model]))
 
 (defonce state (atom {:channels {}
-                  :sessions {}
-                  :subs {}}))
+                      :sessions {}
+                      :subs {}}))
 
 (comment
   (:subs @state)
   (:sessions @state)
-
   )
 
 (defn add-session [ch info]
   (let [sess-id (str (gensym))]
     (swap! state (fn [st]
                    (-> st
-                        (assoc-in [:channels ch] sess-id)
-                        (assoc-in [:sessions sess-id] {:channel ch :info info}))))
+                       (assoc-in [:channels ch] sess-id)
+                       (assoc-in [:sessions sess-id] {:channel ch :info info}))))
     sess-id))
 
 
@@ -31,16 +30,16 @@
   (swap! state (fn [st]
                  (let [sess-id (get-in st [:channels ch])]
                    (-> st
-                        (update :channels dissoc ch)
-                        (update :sessions dissoc sess-id)
-                        (update :subs
-                                (fn [subs]
-                                  (reduce (fn [subs [pth sids]]
-                                            (assoc subs pth (reduce (fn [sids [sid v]]
-                                                                      (if (= sid sess-id)
-                                                                        sids
-                                                                        (assoc sids sid v))) {} sids))
-                                            ) {} subs))))))))
+                       (update :channels dissoc ch)
+                       (update :sessions dissoc sess-id)
+                       (update :subs
+                               (fn [subs]
+                                 (reduce (fn [subs [pth sids]]
+                                           (assoc subs pth (reduce (fn [sids [sid v]]
+                                                                     (if (= sid sess-id)
+                                                                       sids
+                                                                       (assoc sids sid v))) {} sids))
+                                           ) {} subs))))))))
 
 (defn add-subs [sub-id sess-id info]
   (swap! state assoc-in

@@ -8,12 +8,17 @@
 
 (def index-styles
   [:div.app
+   {:position "absolute"
+    :top "50px"
+    :left "150px"
+    :bottom "50px"
+    :right "150px"}
    [:.content {:position "absolute"
                :padding "20px"
                :background-color "white"
                :top "50px"
                :left "250px"
-               :border "1px solid #dddd"
+               ;; :border "1px solid #dddd"
                :bottom "50px"
                :right "50px"}]
    [:.messages
@@ -45,7 +50,7 @@
    [:.rooms
     {:position "absolute"
      :background-color "white"
-     :border "1px solid #dddd"
+     :border-right "1px solid #dddd"
      :top "50px"
      :left "50px"
      :bottom "50px"
@@ -54,8 +59,11 @@
     [:.header {:padding "10px"}]
     [:.room {:display "block"
              :color "#555"
+             :border-bottom "1px solid #f1f1f1"
+             :border-top "1px solid #f1f1f1"
+             :margin-top "-1px"
              :text-decoration "none"
-             :padding "10px 10px"}
+             :padding "15px"}
      [:&.active {:background-color "#777"
                  :color "white"}]]]])
 
@@ -109,5 +117,16 @@
        [rooms params]
        ^{:key (:id params)}[messages params]])))
 
+(defn new [params]
+  (rf/dispatch [:init-chat])
+  (let [chat (rf/subscribe [:chat])]
+    (fn [params]
+      [:div.app
+       [style index-styles]
+       [rooms params]
+       [:div.content [:h1 "New chat"]]
+       ])))
+
 (reg-page :index/index index)
 (reg-page :rooms/show show)
+(reg-page :rooms/new new)
