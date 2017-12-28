@@ -8,19 +8,23 @@
   {:status 200
    :body "hello"})
 
-(defn get-rooms [_]
+(defn get-rooms [req]
   {:body [{:id "clojure" :title "Clojure"}
           {:id "haskel" :title "Haskel"}]})
+
+(defn get-messages [req]
+  {:body [{:author "niquola" :message "Hello"}]})
 
 (def routes
   {:GET          {:action :index}
    "$conn"       {:GET {:action :connection}}
-   "register" {:POST {:action :register}}
-   "rooms"    {:GET  {:action :rooms}
-               [:id] {:GET {:action :room}
+   "register"    {:POST {:action :register}}
+   "rooms"       {:GET  {:action :rooms}
+                  [:id] {:GET {:action :room}
+                         "messages" {:GET {:action :messages}}
+                         :POST {:action :add-message}}}})
 
-                      :POST {:action :add-message}}}})
-(defn index [_] {:body "<html></html>"})
+(defn index [_] {:body routes})
 
 (defonce connections (atom #{}))
 
@@ -32,7 +36,6 @@
 
 (defn connection-handler [req]
   (server/with-channel req ch
-    (server/send! ch "hello")
     (swap! connections conj ch)
     (server/on-close
      ch (fn [status]
@@ -40,12 +43,16 @@
           (println "channel closed: " status)))
     (server/on-receive
      ch (fn [data]
-          (server/send! ch
-                        (json/generate-string
-                         (dispatch-socket-request (json/parse-string data keyword))))))))
+          (let [req  (json/parse-string data keyword)
+                reqs (if (map? req) [req] req)]
+            (doseq [r reqs]
+              (let [resp (dispatch-socket-request r)]
+                (server/send! ch (json/generate-string (assoc resp :request r))))))))))
+
 
 (def fns-map {:index index
               :rooms #'get-rooms
+              :messages #'get-messages
               :connection #'connection-handler})
 
 (defn format-mw [f]

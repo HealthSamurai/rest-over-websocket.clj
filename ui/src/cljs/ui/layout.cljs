@@ -5,5 +5,5 @@
    [re-frame.core :as rf]
    [clojure.string :as str]))
 
-(defn page-layout [content]
-    [:div [content]])
+(defn page-layout [content route]
+    [:div [content (:params route)]])

@@ -71,7 +71,6 @@
        (string? (:match route)) (goto coef [_ (:match route)])
        :else (let [contexts (->> (:parents route) (mapv :context) (filterv identity))
                    path-context (:route-map/path-context db)
-                   breadcrumbs (mk-breadcrumbs route path-context)
                    layout (->> (:parents route) (mapv :layout) (filterv identity) last)
                    aliases (->> (:parents route)
                                 (mapv :alias)
@@ -87,7 +86,6 @@
                            :route/context contexts
                            :route-map/path path
                            :route-map/layout layout
-                           :route-map/breadcrumbs breadcrumbs
                            :route-map/current-route route
                            :route-map/path-context path-context
                            :route-map/query query)

@@ -19,9 +19,10 @@
             [cljsjs.moment]
             [cljsjs.moment.locale.ru]
             [cljsjs.medium-editor]
+            [ui.socket :as socket]
             [re-frisk.core :refer [enable-re-frisk!]]))
 
-(.locale js/moment "ru")
+;; (.locale js/moment "ru")
 
 (def default-cfg
   {:base-url "http://localhost:8080"
@@ -32,7 +33,8 @@
  (fn [{{config :config :as db} :db :as cofx} [_ opts]]
    (let [config (merge default-cfg config opts)]
        {:dispatch [:route-map/init routes/routes]
-        :db {:route-map/current-route {:match :loading}}})))
+        :db {:route-map/current-route {:match :loading}}
+        :ws/connet {}})))
 
 (defn page []
   (let [route (rf/subscribe [:route-map/current-route])]
@@ -42,7 +44,8 @@
         [layout/page-layout
          (if page-comp
            page-comp
-           (fn [] [:h1 (str "404 Страница не найдена")]))]))))
+           (fn [] [:h1 (str "404 Страница не найдена")]))
+         @route]))))
 
 (defn root-component []
   [:div#root
