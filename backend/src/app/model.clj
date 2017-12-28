@@ -12,9 +12,14 @@
 
 (defn rooms-sub [{{rid :room_id id :id :as row} :row chng :change tbl :table :as event}]
   (println "ROOM SUB: " rid (:id row) event)
-  (sessions/notify
-   [:rooms (str rid) :messages]
-   {:body {:change chng :entity (pg/jsonb-row row)} :status 200}))
+  (println tbl)
+  (let [msg {:body {:change chng :entity (pg/jsonb-row row)} :status 200}]
+    (cond
+      (= :messages tbl)
+      (sessions/notify [:rooms (str rid) :messages] msg)
+
+      (= :rooms tbl)
+      (sessions/notify [:rooms] msg))))
 
 (when-not (evs/has-sub? :rooms)
   (evs/add-sub :rooms #'rooms-sub))
@@ -33,6 +38,15 @@
 (defn $get-rooms [{db :db :as req}]
   {:body (get-rooms db)})
 
+
+(defn $create-room [{db :db :as req}]
+  (println (:body req))
+  {:body (pg/jsonb-insert db :rooms {:resource (:body req)})})
+
+(defn $sub-room [{sid :session-id db :db :as req}]
+  (sessions/add-subs [:rooms] sid (select-keys req [:success :uri :request-method]))
+  {:status 200 :body {:message "subscribed"}})
+
 (defn $get-room [req]
   {:body {:memebers [1 2 3]}})
 
@@ -50,11 +64,9 @@
   (pg/jsonb-insert db :messages {:room_id (:room_id message)
                                  :resource message}))
 
-(defn $add-message [{db :db {user-id :user-id text :text} :body {room :id} :route-params :as data}]
-  (let [{name :name} (get @users user-id)
-        message {:author name :message text :room_id room}]
-    {:status 200
-     :body (create-message db message)}))
+(defn $add-message [{db :db msg :body {rid :id} :route-params :as data}]
+  {:status 200
+   :body (create-message db (assoc msg :room_id rid))})
 
 (defn $get-messages [{db :db {room :id} :route-params}]
   {:body (pg/jsonb-query db {:select [:*] :from [:messages] :where [:= :room_id room]})})

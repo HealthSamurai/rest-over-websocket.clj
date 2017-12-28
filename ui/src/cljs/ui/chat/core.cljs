@@ -11,23 +11,29 @@
    {:position "absolute"
     :top "50px"
     :left "150px"
-    :bottom "50px"
+    :bottom "0px"
     :right "150px"}
    [:.content {:position "absolute"
-               :padding "20px"
-               :background-color "white"
+               :padding "0px"
+               :background-color "rgba(244,244,244,0.5)"
                :top "50px"
                :left "250px"
                ;; :border "1px solid #dddd"
                :bottom "50px"
                :right "50px"}]
+   [:.new {:padding "20px"}
+    [:input {:width "100%"
+             :padding "10px"}]]
+
+   [:.header {:padding "15px"
+              :background-color "rgba(255,255,255,0.6)"}]
    [:.messages
     [:.messages-content
      {:overflow-y "auto"
       :position "absolute"
       :top "50px"
       :left "0px"
-      :background-color "#f1f1f1"
+      ;; :background-color "#f1f1f1"
       :padding "10px"
       :right "0px"
       :bottom "50px"}]
@@ -35,7 +41,11 @@
                 :border-radius "4px"
                 :margin-bottom "10px"
                 :width "auto"
-                :padding "10px"}]
+                :padding "10px"}
+     [:.author {:margin-right "10px"
+                :color "gray"}]
+     [:.ava {:width "30px" :height "30px" :border-radius "50%" :margin-right "5px"}]
+     ]
     [:.input {:position "absolute"
               :bottom 0
               :left 0
@@ -44,6 +54,8 @@
               :border-top "1px solid #aaa"
               :height "60px"}
      [:textarea {:width "99%"
+                 :padding "15px"
+                 :background-color "rgba(255,255,255,0.8)"
                  :font-size "16px"
                  :border "none"
                  :height "56px"}]]]
@@ -56,7 +68,6 @@
      :bottom "50px"
      :margin "0px"
      :width "200px"}
-    [:.header {:padding "10px"}]
     [:.room {:display "block"
              :color "#555"
              :border-bottom "1px solid #f1f1f1"
@@ -72,8 +83,8 @@
     (fn [params]
       [:div.rooms
        [:div.header
-        [:b "ROOMS:"]
-        [:a {:href (href "rooms" "new")} "New room"]]
+        [:b "Chats: "]
+        [:a.pull-right {:href (href "rooms" "new")} "new room"]]
        (for [{:keys [id title]} (:rooms @chat)]
          [:a.room {:key id
                    :class (when (= (str id) (:id params)) "active")
@@ -98,11 +109,15 @@
         on-change #(rf/dispatch [:on-change [:chat rid :input] (.. % -target -value)])]
     (fn [params]
       [:div.content.messages
-       [:div.header "messages"]
+       [:div.header [:b "messages"]]
        [:div.messages-content
         (for [m @messages]
           [:div.message {:key (:id m)}
-           (:message m)])]
+           [:span.author
+            [:img.ava {:src (get-in m [:author :picture])}]
+            (get-in m [:author :name])]
+           ;; (pr-str (:author m))
+           (:text m)])]
        [:div.input
         [:textarea {:value @input
                     :on-key-down on-key-down
@@ -117,15 +132,24 @@
        [rooms params]
        ^{:key (:id params)}[messages params]])))
 
-(defn new [params]
+(defn new [{rid :id}]
   (rf/dispatch [:init-chat])
-  (let [chat (rf/subscribe [:chat])]
+  (let [chat (rf/subscribe [:chat])
+        form-path [:new :chat]
+        value (rf/subscribe [:value form-path])
+        submit #(rf/dispatch [:new-chat @value])
+        on-change #(rf/dispatch [:on-change form-path (.. % -target -value)])]
     (fn [params]
       [:div.app
        [style index-styles]
        [rooms params]
-       [:div.content [:h1 "New chat"]]
-       ])))
+       [:div.content.new
+        [:div.header [:b "New chat"]]
+        [:hr]
+        [:input.name {:value @value :on-change on-change}]
+        [:br]
+        [:br]
+        [:button.btn.btn-success {:on-click submit} "Create!"]]])))
 
 (reg-page :index/index index)
 (reg-page :rooms/show show)

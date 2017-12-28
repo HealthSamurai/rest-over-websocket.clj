@@ -26,28 +26,25 @@
 (rf/reg-event-fx
  :init-chat
  (fn [{db :db} [_ rid]]
-   {:http/xhr [#_{:uri "register"
-                :request-method "post"
-                :body {:user-id "user" :name "Ilya Beda"}}
-               {:uri (str "/rooms")
+   {:http/xhr [{:uri (str "/rooms")
                 :request-method "get"
                 :success :rooms-loaded}
-               #_{:uri (str "/rooms/" rid)
-                  :request-method "get"
-                  :success :room-success}
-               #_{:uri (str "/rooms/" rid "/messages")
-                  :params {:room_id rid}
-                  :request-method "get"
-                  :success :room-messages}
-               #_{:uri (str "/rooms/" rid "/messages")
-                  :request-method "sub"
-                  :body {:user-id user-id}
-                  :success :room-messages-change}]}))
+               {:uri (str "/rooms")
+                :request-method "sub"
+                :success :rooms-changed}]}))
 
 (rf/reg-event-db
  :rooms-loaded
  (fn [db [_ {data :body}]]
    (assoc db :rooms data)))
+
+(rf/reg-event-db
+ :rooms-changed
+ (fn [db [_ {{ch :change ent :entity :as msg} :body}]]
+   (println "change:" ch ent)
+   (if ent
+     (update db :rooms conj ent)
+     db)))
 
 (rf/reg-sub
  :chat
@@ -88,7 +85,8 @@
  (fn [{db :db} [_ rid txt]]
    {:http/xhr {:uri (str "/rooms/" rid )
                :request-method "post"
-               :body {:text txt}
+               :body {:text txt
+                      :author (dissoc (:auth db) :id_token)}
                :success :message-sent}
     :dispatch [:on-change [:chat rid :input] ""]}))
 
@@ -107,3 +105,19 @@
 (rf/reg-sub
  :room
  (fn [db [_ rid]] (get-in db [:room rid])))
+
+(rf/reg-event-fx
+ :new-chat
+ (fn [{db :db} [_ title]]
+   (println "NEW:" title)
+   (if title
+     {:http/xhr [{:uri "/rooms/"
+                  :request-method "post"
+                  :body {:title title}
+                  :success :chat-created}]}
+     {})))
+
+(rf/reg-event-fx
+ :chat-created
+ (fn [fx [_ {data :body}]]
+   {:page-redirect (str "/rooms/" (:id data))}))

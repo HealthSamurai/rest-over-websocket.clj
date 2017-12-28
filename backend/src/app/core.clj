@@ -18,6 +18,8 @@
    "$conn"       {:GET {:action :connection}}
    "register"    {:POST {:action :register}}
    "rooms"       {:GET  {:action :rooms}
+                  :POST {:action :create-room}
+                  :SUB  {:action :sub-room}
                   [:id] {:GET {:action :room}
                          "messages" {:GET {:action :messages}
                                      :SUB {:action :subscribe-messages}}
@@ -54,6 +56,8 @@
               :register #'model/$register
               :rooms #'model/$get-rooms
               :room #'model/$get-room
+              :create-room #'model/$create-room
+              :sub-room #'model/$sub-room
               :messages #'model/$get-messages
               :add-message #'model/$add-message
               :subscribe-messages #'model/$subscribe-messages

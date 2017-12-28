@@ -21,6 +21,11 @@
    (set! js/location.hash url)))
 
 (rf/reg-fx
+ :page-redirect
+ (fn [url]
+   (set! js/location.hash url)))
+
+(rf/reg-fx
  :redirect/redirect
  (fn [{:keys [url]}]
    (set! js/location.hash url)))
