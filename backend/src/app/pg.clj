@@ -78,13 +78,14 @@
   (q db {:select [:*] :from [:test]})
   (q db {:select [:*] :from [:rooms]})
 
-  (exec db "drop table  if exists test; create table test (id serial, resource jsonb)")
+  (exec db "drop table  if exists test; create table test (id serial primary key, resource jsonb)")
 
-  (q db
-     {:insert-into :test
+  (q db {:insert-into :test
       :values [{:resource (json/generate-string {:a 1})}]
       :returning [:*]})
 
+
+  (exec db "delete from test")
 
   (jdbc/query db "select * from information_schema.tables limit 10")
 

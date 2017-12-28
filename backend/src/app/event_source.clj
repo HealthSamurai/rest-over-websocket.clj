@@ -52,6 +52,7 @@
   (get @subscriptions k))
 
 (defn on-message [x]
+  (println "raw message:" x)
   (dispatch (json/parse-string x keyword)))
 
 (defn close-connection [{conn :conn}]
