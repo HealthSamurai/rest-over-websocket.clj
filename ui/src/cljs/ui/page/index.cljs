@@ -271,25 +271,21 @@
  :messages
  (fn [db  _] (:messages db)))
 
-<<<<<<< HEAD
 (rf/reg-sub
  :room
  (fn [db [_ rid]] (get-in db [:room rid])))
 
-#_(defn show [params]
-  (println "params" params)
-  
-  (let []
+(defn show [{room-id :id}]
+  (rf/dispatch [:init-room room-id])
+  (let [messages (rf/subscribe [:messages])]
     (fn []
-      (js/console.log "Messages: " (pr-str @messages))
-      [:div.panel.room
-       [:div.title
-        [:div.name "Room"]]
-       [:div.chat
-        ]])))
+      [:div
+       [:button {:on-click #(rf/dispatch [:add-message room-id])} "add message"]
+       [:div
+        (pr-str @messages)]])))
 
 (reg-page :index/index index)
-#_(reg-page :rooms/show show)
+(reg-page :rooms/show show)
 
 (comment
 
