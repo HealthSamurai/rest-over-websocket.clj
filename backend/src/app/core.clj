@@ -1,24 +1,45 @@
 (ns app.core
-  (:require [org.httpkit.server :as server]))
+  (:require [org.httpkit.server :as server]
+            [cheshire.core :as json]
+            [clj-yaml.core :as yaml]
+            [route-map.core :as routing]
+            ))
 
 (defn dispatch [req]
   {:status 200
    :body "hello"})
 
-(defn start []
-  (server/run-server #'dispatch {:port 8889}))
+(def routes
+  {:GET          {:action :index}
+   "$conn"       {:GET {:action :connection}}
+   "admin"       {"users" {:GET {:action :get-users}}}})
 
-(comment
-  (def srv (start))
-  ;; stop it
-  (srv))
+(defonce connections (atom #{}))
 
-(dispatch {})
+(defn dispatch-socket-request [req]
+  {:body {:some "data"
+          :request req}})
 
-;; json middle ware
+(defn connection-handler [req]
+  (server/with-channel req ch
+    (println "incomming conn" ch)
+    (server/send! ch "hello")
+    (swap! connections conj ch)
+    (server/on-close
+     ch (fn [status]
+          (swap! connections disj ch)
+          (println "channel closed: " status)))
+    (server/on-receive
+     ch (fn [data]
+          (server/send! ch (json/generate-string (dispatch-socket-request (json/parse-string data))))))))
 
-(require '[cheshire.core :as json])
-(require '[clj-yaml.core :as yaml])
+(server/send!
+ (first @connections)
+ "hello")
+
+
+(def fns-map {:index (fn [_] {:body "<html></html>"})
+              :connection #'connection-handler})
 
 (defn format-mw [f]
   (fn [req]
@@ -28,59 +49,25 @@
         (update resp :body yaml/generate-string)
         resp))))
 
-(def mystack (-> identity format-mw ))
-
-(mystack {:body {:message "ok"}})
-
-(defn index [req]
-  {:status 200
-   :body {:message "ok"}})
-
-(def dispatch (-> #'index format-mw))
-
-(require '[route-map.core :as routing])
-
-(def routes
-  {:GET         {:action :index}
-   "admin"       {"users" {:GET {:action :get-users}
-                           :auth [:admin]}}
-   [:table_name] {:GET {:action :select}}})
-
-(-> (routing/match [:GET "/"] routes)
-    :match)
-
-(-> (routing/match [:GET "/admin/users"] routes)
-    :match)
-
-(-> (routing/match [:GET "/admin/ups"] routes)
-    :match)
-
-(-> (routing/match [:GET "/tables"] routes)
-    :params)
-
 (defn resolve-route [f]
   (fn [{uri :uri meth :request-method :as req}]
-    (if-let [m (routing/match [meth uri] routes)]
+    (if-let [m (routing/match [meth uri] #'routes)]
       (f (assoc req :current-route (:match m) :route-params (:params m)))
       {:status 404 :body {:message (str uri " is not found")}})))
-
-((-> identity resolve-route) {:uri "/" :request-method "get"})
-
-
-(defn select-handler [{{tbl :table_name } :route-params :as req}]
-  {:body {:select_from tbl}})
-
-(dispatch {:uri "/sometable" :request-method "get"})
-
-(def fns-map {:index #'index
-              :select #'select-handler})
 
 (defn *dispatch [{route :current-route :as req}]
   (if-let [h (get fns-map (:action route))]
     (h req)
     {:status 404 :body {:message (str "No implementation for " route)}}))
 
-(def dispatch (-> *dispatch resolve-route format-mw))
+(def dispatch (-> *dispatch resolve-route ))
+;; format-mw
 
-(dispatch {:uri "/" :request-method "get"})
+(defn start []
+  (server/run-server #'dispatch {:port 8080}))
 
+(comment
+  (def srv (start))
+  ;; stop it
+  (srv)
+  )
