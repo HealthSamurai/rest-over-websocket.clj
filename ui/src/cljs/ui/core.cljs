@@ -13,6 +13,7 @@
             [re-frame.core :as rf]
             [clojure.string :as str]
             [ui.styles :as styles]
+            [ui.page.index :as index]
             [ui.routes :as routes]
             [ui.layout :as layout]
             [ui.page.index]
@@ -49,6 +50,7 @@
 
 (defn root-component []
   [:div#root
+   index/styles
    flash/styles
    styles/common-styles
    [page]
