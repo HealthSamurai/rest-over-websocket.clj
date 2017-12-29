@@ -101,24 +101,28 @@
        [style index-styles]
        [rooms params]])))
 
+(defn message-list []
+  (let [messages (rf/subscribe [:messages])]
+    [:div.messages-content
+     (for [m @messages]
+       [:div.message {:key (:id m)
+                      :ref #(and % (.scrollIntoView % {"behaviour" "smooth"}))}
+        [:span.author
+         [:img.ava {:src (get-in m [:author :picture])}]
+         (get-in m [:author :name])]
+        ;; (pr-str (:author m))
+        (:text m)])]))
+
 (defn messages [{rid :id}]
   (rf/dispatch [:init-messages rid])
-  (let [messages (rf/subscribe [:messages])
-        input (rf/subscribe [:value [:chat rid :input]])
+  (let [input (rf/subscribe [:value [:chat rid :input]])
         on-key-down (fn [ev] (when (= 13 (.-which ev))
                                (rf/dispatch [:send-message rid @input])))
         on-change #(rf/dispatch [:on-change [:chat rid :input] (.. % -target -value)])]
     (fn [params]
       [:div.content.messages
        [:div.header [:b "messages"]]
-       [:div.messages-content
-        (for [m @messages]
-          [:div.message {:key (:id m)}
-           [:span.author
-            [:img.ava {:src (get-in m [:author :picture])}]
-            (get-in m [:author :name])]
-           ;; (pr-str (:author m))
-           (:text m)])]
+       [message-list]
        [:div.input
         [:textarea {:value @input
                     :on-key-down on-key-down
