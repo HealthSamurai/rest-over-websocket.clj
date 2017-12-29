@@ -5,23 +5,17 @@
             :url "http://www.eclipse.org/legal/epl-v10.html"}
 
   :dependencies [[org.clojure/clojure "1.9.0-alpha16"]
-                 [org.clojure/clojurescript "1.9.671" :scope "provided"]
+                 ;; [org.clojure/clojurescript "1.9.671" :scope "provided"]
+                 [org.clojure/clojurescript "1.9.946"]
                  [cljsjs/react-with-addons "15.4.2-2"]
-                 [com.cemerick/url "0.1.1"]
                  [reagent "0.6.1" :exclusions [cljsjs/react]]
                  [re-frame "0.9.2" :exclusions [cljsjs/react]]
                  [reagent-utils "0.2.1" :exclusions [cljsjs/react]]
-                 [re-frisk "0.5.0"]
-                 [binaryage/devtools "0.9.2"]
                  [cljsjs/moment-timezone "0.5.11-1"]
                  [cljs-http "0.1.43"]
-                 [clj-time "0.14.0"]
-                 [com.andrewmcveigh/cljs-time "0.5.0"]
-                 [hiccup "1.0.5"]
                  [bouncer "1.0.1"]
                  [garden "1.3.2"]
                  [cljsjs/moment "2.17.1-1"]
-                 [cljsjs/medium-editor "5.23.2-0"]
                  [haslett "0.1.0"]
                  [route-map "0.0.4"]]
 
@@ -51,6 +45,7 @@
                                   :nrepl-middleware [cemerick.piggieback/wrap-cljs-repl]}
 
                    :dependencies [[ring/ring-mock "0.3.0"]
+                                  [binaryage/devtools "0.9.2"]
                                   [ring/ring-devel "1.5.1"]
                                   [prone "1.1.4"]
                                   [re-frisk "0.5.0"]
@@ -106,5 +101,5 @@
                            {:main "ui.prod"
                             :verbose true
                             :output-to "build/js/ui.js"
-                            :optimizations :advanced
+                            :optimizations :simple
                             :pretty-print  false}}}}}})

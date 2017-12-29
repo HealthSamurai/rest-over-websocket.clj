@@ -6,7 +6,8 @@
             [app.pg :as pg]
             [app.event-source :as evs]
             [app.sessions :as sessions]
-            [app.model :as model]))
+            [app.model :as model])
+  (:gen-class))
 
 (defn dispatch [req]
   {:status 200
@@ -36,7 +37,6 @@
 
 (defn connection-handler [ctx]
   (server/with-channel ctx ch
-    (swap! connections conj ch)
     (let [sess-id (sessions/add-session ch {})]
       (server/on-close
        ch (fn [status]
@@ -80,32 +80,62 @@
     {:status 404 :body {:message (str uri " is not found")}}))
 
 (defn start [cfg]
+  (println "Migrate")
+
+  (model/migrate (:db cfg))
   (let [db (:db cfg)
         ev-conn (evs/connection (:ev cfg))
         ctx {:db db :ev ev-conn}
         stack (-> *dispatch format-mw)
         web-h (fn [req] (stack (merge ctx req)))
-        web (server/run-server web-h {:port 8080})]
+        web (server/run-server web-h {:port (or (:port cfg) 8080)})]
+    (println "Web started on " (or (:port cfg) 8080))
+    (println "test connection "
+             (pg/q (:db cfg) "select 1"))
     (assoc ctx :web web)))
 
 (defn stop [{web :web ev :ev}]
   (web)
   (evs/close-connection ev))
 
+(defn connection-string []
+  (str "jdbc:postgresql://"
+       (System/getenv "PGHOST")
+       ":"
+       (System/getenv "PGPORT")
+       "/"
+       (System/getenv "PGDATABASE")))
+
+(defn connection-string-with-params []
+  (str (connection-string)
+       "?stringtype=unspecified&user="
+       (System/getenv "PGUSER")
+       "&password="
+       (System/getenv "PGPASSWORD")))
+
+(defn env-config []
+  {:port (System/getenv "PORT")
+   :db {:dbtype "postgresql"
+        :connection-uri (connection-string-with-params)}
+   :ev {:uri (connection-string)
+        :user (System/getenv "PGUSER")
+        :password (System/getenv "PGPASSWORD")
+        :slot "test_slot"
+        :decoder "wal2json"}})
+
+(defn -main [& args]
+  (start (env-config)))
+
+(connection-string)
+(connection-string-with-params)
+
 (comment
-  (def srv (start {:db {:dbtype "postgresql"
-                        :connection-uri "jdbc:postgresql://localhost:5444/postgres?stringtype=unspecified&user=postgres&password=secret"}
-                   :ev {:uri "jdbc:postgresql://localhost:5444/postgres"
-                        :user "postgres"
-                        :password "secret"
-                        :slot "test_slot"
-                        :decoder "wal2json"}}))
+  (def srv (start (env-config)))
 
   srv
 
   ;; stop it
   (stop srv)
-
 
 
   )

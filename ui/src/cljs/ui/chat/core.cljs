@@ -93,6 +93,7 @@
        ])))
 
 (defn index [params]
+  (.log js/console "Render index")
   (rf/dispatch [:init-chat])
   (let [chat (rf/subscribe [:chat])]
     (fn []

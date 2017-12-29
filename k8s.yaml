@@ -1,0 +1,165 @@
+---
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: row-db
+  labels:
+    app: db
+  annotations:
+    volume.beta.kubernetes.io/storage-class: standard
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: row-db
+spec:
+  selector:
+    service: row-db
+  ports:
+    - protocol: TCP
+      port: 5432
+      targetPort: 5432
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: row-db
+  labels:
+    system: row 
+    service: row-db
+  namespace: default
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        system: row 
+        service: row-db
+    spec:
+      containers:
+      - name: db
+        image: "niquola/pglogical:latest"
+        imagePullPolicy: Always
+        env:
+        - name: POSTGRES_USER
+          value: postgres
+        - name: POSTGRES_PASSWORD
+          value: secret
+        - name: POSTGRES_DB
+          value: postgres
+        ports:
+        - containerPort: 5432
+          protocol: TCP
+        volumeMounts:
+        - name: data
+          mountPath: /var/lib/postgresql/data
+          subPath: pgdata
+      volumes:
+      - name: data
+        persistentVolumeClaim:
+          claimName: row-db
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: row-back
+  labels:
+    system: row
+    service: row-back
+  namespace: default
+spec:
+  ports:
+  - name: row-back
+    port: 80
+    protocol: TCP
+    targetPort: 8080
+  selector:
+    system: row 
+    service: row-back
+  type: NodePort
+
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: row-back
+  labels:
+    system: row 
+    service: row-back
+  namespace: default
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        system: row 
+        service: row-back
+    spec:
+      containers:
+      - name: back
+        image: "niquola/rest-over-vs:latest"
+        imagePullPolicy: Always
+        env:
+        - name: PGHOST
+          value: row-db
+        - name: PGPORT
+          value: "5432"
+        - name: PGUSER
+          value: postgres
+        - name: PGPASSWORD
+          value: secret
+        - name: PGDATABASE
+          value: postgres
+        ports:
+        - containerPort: 8080
+          protocol: TCP
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: row-ui
+  labels:
+    system: row
+    service: row-ui
+  namespace: default
+spec:
+  ports:
+  - name: row-ui
+    port: 80
+    protocol: TCP
+    targetPort: 80
+  selector:
+    service: row-ui
+  type: NodePort
+
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: row-ui
+  labels:
+    system: row
+    service: row-ui
+  namespace: default
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        system: row
+        service: row-ui
+    spec:
+      containers:
+      - name: ui
+        image: niquola/rest-over-vs-ui:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 80
+          protocol: TCP

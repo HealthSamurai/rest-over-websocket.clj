@@ -5,8 +5,7 @@
             [route-map.core :as routing]
             [app.pg :as pg]
             [app.event-source :as evs]
-            [org.httpkit.server :as server]
-            [app.model :as model]))
+            [org.httpkit.server :as server]))
 
 (defonce state (atom {:channels {}
                       :sessions {}

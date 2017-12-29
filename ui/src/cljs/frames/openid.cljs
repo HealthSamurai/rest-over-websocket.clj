@@ -20,7 +20,6 @@
 
 (defn check-token []
   (let [hash (when-let [h (.. js/window -location -hash)] (str/replace h  #"^#" ""))]
-    (println "hash" hash)
     (when (str/index-of hash "id_token")
       (let [token (->> (str/split hash "&")
                        (filter #(str/starts-with? % "id_token="))

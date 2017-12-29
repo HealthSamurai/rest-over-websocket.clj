@@ -57,7 +57,6 @@
 
 
 (defn $register [{channel :channel {user-id :user-id name :name :as body} :body :as params}]
-  (swap! users assoc user-id (assoc body :channel channel))
   {:body []})
 
 (defn create-message [db message]
@@ -89,7 +88,7 @@
 
   (evs/rm-sub :rooms)
 
-  (create-room pg/db {:title "Clojure chat"})
+  (create-room pg/db {:title "test chat"})
 
   (create-room pg/db {:title "Postgres chat"})
   (create-message pg/db {:room_id 13

@@ -41,7 +41,7 @@
 (rf/reg-event-db
  :rooms-changed
  (fn [db [_ {{ch :change ent :entity :as msg} :body}]]
-   (println "change:" ch ent)
+   (.log js/console "change:" ch ent)
    (if ent
      (update db :rooms conj ent)
      db)))
@@ -69,7 +69,7 @@
 (rf/reg-event-db
  :new-message
  (fn [db [_ {{ch :change ent :entity :as msg} :body}]]
-   (println "change:" ch ent)
+   (.log js/console "change:" ch ent)
    (if ent
      (update db :messages conj ent)
      db)))
@@ -109,7 +109,7 @@
 (rf/reg-event-fx
  :new-chat
  (fn [{db :db} [_ title]]
-   (println "NEW:" title)
+   (.log js/console "NEW:" title)
    (if title
      {:http/xhr [{:uri "/rooms/"
                   :request-method "post"

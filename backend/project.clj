@@ -1,4 +1,4 @@
-(defproject fpconf "0.1.0-SNAPSHOT"
+(defproject app "0.1.0-SNAPSHOT"
   :description "FIXME: write description"
   :url "http://example.com/FIXME"
   :license {:name "Eclipse Public License"
@@ -20,4 +20,6 @@
                  [route-map "0.0.6"]
                  [honeysql "0.9.1"]
                  [unifn "0.1.0-RC2"]
-                 [clj-yaml "0.4.0"]])
+                 [clj-yaml "0.4.0"]]
+  :profiles {:uberjar {:aot :all :omit-source true}}
+  :uberjar-name "app.jar")
