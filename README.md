@@ -1,5 +1,8 @@
 # REST over WebSocket
 
+Demo - https://row-ui.health-samurai.io
+
+
 ## The main point
 
 Websockets nowadays are used as consumables - you have one when you need it and flush away just after.
